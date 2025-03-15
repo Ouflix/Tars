@@ -1,0 +1,58 @@
+from flask import Flask, request, redirect, url_for, render_template_string, flash, get_flashed_messages
+
+app = Flask(__name__)
+
+# You need a secret key for flash messages to work
+app.secret_key = "any_secret_string_you_want"
+
+# A simple homepage that displays any flashed messages
+@app.route("/")
+def home():
+    # Get all flashed messages
+    messages = get_flashed_messages()
+
+    # We'll use a tiny inline template here:
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head><title>Flask Redirect Example</title></head>
+    <body>
+      <h1>Home Page</h1>
+      {% if messages %}
+        <ul>
+          {% for msg in messages %}
+            <li>{{ msg }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No new messages.</p>
+      {% endif %}
+
+      <form action="/move" method="POST">
+        <label>Direction: <input type="text" name="direction"></label><br><br>
+        <label>Speed: <input type="number" name="speed"></label><br><br>
+        <button type="submit">Send Move</button>
+      </form>
+    </body>
+    </html>
+    """
+
+    return render_template_string(html_content, messages=messages)
+
+# This route receives data, flashes a message, then redirects
+@app.route("/move", methods=["POST"])
+def move():
+    direction = request.form.get("direction", "unknown")
+    speed = request.form.get("speed", "0")
+
+    # Here’s the message you want to show the client AFTER redirect
+    msg = f"Movement sent: {direction} at speed {speed}"
+
+    # Use flash() to store a one-time message
+    flash(msg)
+
+    # Redirect to home so the user can see the message
+    return redirect(url_for("home"))
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
