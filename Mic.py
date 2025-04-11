@@ -1,55 +1,38 @@
-import whisper
+import subprocess
+import tempfile
 import sounddevice as sd
 import numpy as np
-import tempfile
 import scipy.io.wavfile
-import time
+import os
 
-# Load model (use "tiny" for speed)
-model = whisper.load_model("tiny")
+WAV_FILENAME = "temp.wav"
+WHISPER_CPP_PATH = "/home/pi/whisper.cpp"  # Change to your actual path
 
-samplerate = 16000
-channels = 1
-threshold = 300  # Silence threshold (lower = more sensitive)
-silence_limit = 1.0  # seconds of silence before stop
-chunk_duration = 0.2  # duration of each read in seconds
+def record_audio(duration=4, samplerate=16000):
+    print("[Listening...]")
+    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
+    sd.wait()
+    scipy.io.wavfile.write(WAV_FILENAME, samplerate, audio)
 
-print("Speak to start recording...")
+def transcribe_with_whisper_cpp(wav_file):
+    result = subprocess.run([
+        f"{WHISPER_CPP_PATH}/main",
+        "-m", f"{WHISPER_CPP_PATH}/ggml-tiny.bin",
+        "-l", "ro",
+        "-f", wav_file,
+        "-otxt"
+    ], capture_output=True, text=True)
 
-def rms(audio):
-    return np.sqrt(np.mean(np.square(audio)))
+    output_txt_file = wav_file.replace(".wav", ".txt")
+    if os.path.exists(output_txt_file):
+        with open(output_txt_file, "r") as f:
+            text = f.read().strip()
+        return text
+    else:
+        return "[Error] Transcription failed."
 
-def record_until_silence():
-    audio_data = []
-    silence_start = None
-
-    stream = sd.InputStream(samplerate=samplerate, channels=channels, dtype='int16')
-    stream.start()
-
-    try:
-        while True:
-            chunk, _ = stream.read(int(samplerate * chunk_duration))
-            audio_data.append(chunk)
-
-            level = rms(chunk)
-            if level < threshold:
-                if silence_start is None:
-                    silence_start = time.time()
-                elif time.time() - silence_start > silence_limit:
-                    break
-            else:
-                silence_start = None
-    finally:
-        stream.stop()
-
-    return np.concatenate(audio_data, axis=0)
-
+# Main loop
 while True:
-    print("\n[Listening for voice...]")
-    audio = record_until_silence()
-    print("[Transcribing...]")
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
-        scipy.io.wavfile.write(f.name, samplerate, audio)
-        result = model.transcribe(f.name, language="en")
-        print("[You said]:", result["text"])
+    record_audio(duration=4)
+    result = transcribe_with_whisper_cpp(WAV_FILENAME)
+    print("[You said]:", result)
