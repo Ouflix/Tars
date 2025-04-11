@@ -1,38 +1,45 @@
-import subprocess
-import tempfile
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile
+import subprocess
 import os
 
-WAV_FILENAME = "temp.wav"
-WHISPER_CPP_PATH = "/home/pi/whisper.cpp"  # Change to your actual path
+# Full paths (replace 'victor' if your username is different)
+WAV_FILENAME = "/home/victor/Desktop/temp.wav"
+TXT_FILENAME = WAV_FILENAME + ".txt"
 
-def record_audio(duration=4, samplerate=16000):
+WHISPER_CLI = "/home/victor/Desktop/Tars/modules/whisper[git]/bin/whisper-cli"
+MODEL_PATH = "/home/victor/Desktop/Tars/modules/whisper[git]/whisper.cpp/models/ggml-tiny.bin"
+
+# Recording settings
+DURATION = 4  # seconds
+SAMPLERATE = 16000
+
+def record_audio():
     print("[Listening...]")
-    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
+    audio = sd.rec(int(DURATION * SAMPLERATE), samplerate=SAMPLERATE, channels=1, dtype='int16')
     sd.wait()
-    scipy.io.wavfile.write(WAV_FILENAME, samplerate, audio)
+    scipy.io.wavfile.write(WAV_FILENAME, SAMPLERATE, audio)
 
-def transcribe_with_whisper_cpp(wav_file):
-    result = subprocess.run([
-        f"{WHISPER_CPP_PATH}/main",
-        "-m", f"{WHISPER_CPP_PATH}/ggml-tiny.bin",
+def transcribe_with_whisper_cpp():
+    subprocess.run([
+        WHISPER_CLI,
+        "-m", MODEL_PATH,
         "-l", "ro",
-        "-f", wav_file,
+        "-f", WAV_FILENAME,
         "-otxt"
     ], capture_output=True, text=True)
 
-    output_txt_file = wav_file.replace(".wav", ".txt")
-    if os.path.exists(output_txt_file):
-        with open(output_txt_file, "r") as f:
+    if os.path.exists(TXT_FILENAME):
+        with open(TXT_FILENAME, "r") as f:
             text = f.read().strip()
-        return text
+        print("[You said]:", text)
+        # Optional: clean up files
+        os.remove(WAV_FILENAME)
+        os.remove(TXT_FILENAME)
     else:
-        return "[Error] Transcription failed."
+        print("[Error] Transcription failed.")
 
-# Main loop
-while True:
-    record_audio(duration=4)
-    result = transcribe_with_whisper_cpp(WAV_FILENAME)
-    print("[You said]:", result)
+# Run once
+record_audio()
+transcribe_with_whisper_cpp()
